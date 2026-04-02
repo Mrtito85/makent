@@ -16,8 +16,10 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL('/login', request.url));
   }
 
-  try {
-    const { payload } = await jwtVerify(token, JWT_SECRET);
+    // Verify using only default algorithms to avoid compression bloat
+    const { payload } = await jwtVerify(token, JWT_SECRET, {
+      algorithms: ['HS256']
+    });
     
     // Explicit RBAC Check Examples (intercepting specific top tier routes)
     const role = payload.role as string;
