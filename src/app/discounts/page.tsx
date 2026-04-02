@@ -1,4 +1,4 @@
-﻿import { prisma } from '@/lib/prisma';
+import { prisma } from '@/lib/prisma';
 import { revalidatePath } from 'next/cache';
 
 export default async function DiscountsPage() {
@@ -15,7 +15,7 @@ export default async function DiscountsPage() {
     const customerId = formData.get('customerId') as string;
     const productId = formData.get('productId') as string;
     const maxDiscountPct = parseFloat(formData.get('maxDiscountPct') as string);
-    const MOCK_USER_ROLE = "SUPER_ADMIN"; // Simulated RBAC limit
+    const MOCK_USER_ROLE = "SUPER_ADMIN" as string; // Explicit string to avoid TS literal overlap error
 
     if (MOCK_USER_ROLE !== 'ADMIN' && MOCK_USER_ROLE !== 'SUPER_ADMIN') {
       throw new Error("Unauthorized to set System Rules.");
@@ -31,15 +31,18 @@ export default async function DiscountsPage() {
         create: { customerId, productId, maxDiscountPct }
       });
 
-      await tx.auditLog.create({
-        data: {
-          userId: "mock-super-admin",
-          action: 'CREATED_DISCOUNT_RULE',
-          entity: 'DISCOUNT_RULE',
-          entityId: rule.id,
-          details: `Set MAX Discount: ${maxDiscountPct}%`
-        }
-      });
+      const user = await tx.user.findFirst();
+      if (user) {
+        await tx.auditLog.create({
+          data: {
+            userId: user.id,
+            action: 'CREATED_DISCOUNT_RULE',
+            entity: 'DISCOUNT_RULE',
+            entityId: rule.id,
+            details: `Set MAX Discount: ${maxDiscountPct}%`
+          }
+        });
+      }
     });
 
     revalidatePath('/discounts');
