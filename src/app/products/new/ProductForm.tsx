@@ -2,8 +2,10 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 
 export default function ProductForm({ categories }: { categories: any[] }) {
+  const router = useRouter();
   const [netPrice, setNetPrice] = useState<number>(0);
   const [vatEnabled, setVatEnabled] = useState<boolean>(true);
   const [grossPrice, setGrossPrice] = useState<number>(0);
@@ -16,11 +18,39 @@ export default function ProductForm({ categories }: { categories: any[] }) {
     }
   }, [netPrice, vatEnabled]);
 
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    const data = {
+      name: formData.get('name'),
+      productCode: formData.get('productCode'),
+      sku: formData.get('sku'),
+      barcode: formData.get('barcode'),
+      categoryId: formData.get('categoryId'),
+      unitOfMeasurement: formData.get('unitOfMeasurement'),
+      basePrice: parseFloat(formData.get('basePrice') as string),
+      isVatEnabled: formData.get('vatToggleState') === 'true',
+    };
+
+    const res = await fetch('/api/products', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+
+    if (res.ok) {
+      router.push('/products');
+      router.refresh(); // Force Next.js cache refresh to show the new product!
+    } else {
+      alert("Failed to create product!");
+    }
+  };
+
   return (
     <div className="card" style={{ maxWidth: '700px', margin: '0 auto' }}>
       <h2 style={{ marginTop: 0, color: 'var(--primary)', marginBottom: '1.5rem' }}>Create Product Master</h2>
       
-      <form action="/api/products" method="POST" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
+      <form onSubmit={handleSubmit} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
         
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', gridColumn: '1 / -1' }}>
           <label htmlFor="name" style={{ fontWeight: 500 }}>Product Name *</label>
@@ -61,13 +91,16 @@ export default function ProductForm({ categories }: { categories: any[] }) {
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
           <label htmlFor="categoryId" style={{ fontWeight: 500 }}>Category Scope</label>
           <select 
-            id="categoryId" name="categoryId" required
+            id="categoryId" name="categoryId" required defaultValue=""
             style={{ padding: '0.75rem', borderRadius: '6px', border: '1px solid var(--border)', background: 'white' }} 
           >
-            <option value="" disabled selected>-- Select a Category --</option>
+            <option value="" disabled>-- Select a Category --</option>
             {categories.map(c => (
               <option key={c.id} value={c.id}>{c.name}</option>
             ))}
+            {categories.length === 0 && (
+              <option value="" disabled>⚠️ Please create a Category first in the Dashboard!</option>
+            )}
           </select>
         </div>
 

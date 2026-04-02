@@ -1,4 +1,4 @@
-﻿import { prisma } from '@/lib/prisma';
+import { prisma } from '@/lib/prisma';
 import { revalidatePath } from 'next/cache';
 
 export default async function InventoryPage() {
@@ -17,7 +17,10 @@ export default async function InventoryPage() {
     const notes = formData.get('notes') as string;
     const batchNo = formData.get('batchNo') as string;
 
-    const MOCK_USER_ID = "mock-inventory-staff";
+    // In a real system, this would come from the session. 
+    // We'll fallback to a generic ID that we'll ensure exists or handle gracefully.
+    const user = await prisma.user.findFirst();
+    const MOCK_USER_ID = user?.id || "system"; 
 
     if (!productId || qty <= 0) return;
 
@@ -37,15 +40,17 @@ export default async function InventoryPage() {
         data: { productId, type, qty, notes, batchNo }
       });
 
-      await tx.auditLog.create({
-        data: {
-          userId: MOCK_USER_ID,
-          action: `INVENTORY_${type}`,
-          entity: 'INVENTORY_TRANSACTION',
-          entityId: trans.id,
-          details: `Qty: ${qty}, New Stock: ${newStock}`
-        }
-      });
+      if (user) {
+        await tx.auditLog.create({
+          data: {
+            userId: user.id,
+            action: `INVENTORY_${type}`,
+            entity: 'INVENTORY_TRANSACTION',
+            entityId: trans.id,
+            details: `Qty: ${qty}, New Stock: ${newStock}`
+          }
+        });
+      }
     });
 
     revalidatePath('/inventory');

@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation';
+import { revalidatePath } from 'next/cache';
 import { prisma } from '@/lib/prisma';
 
 export default function NewCustomerPage() {
@@ -17,6 +18,7 @@ export default function NewCustomerPage() {
       data: { name, email, phone, address, uniqueCustomerId, registrationNumber },
     });
 
+    revalidatePath('/customers');
     redirect('/customers');
   }
 
