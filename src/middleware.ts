@@ -16,6 +16,7 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL('/login', request.url));
   }
 
+  try {
     // Verify using only default algorithms to avoid compression bloat
     const { payload } = await jwtVerify(token, JWT_SECRET, {
       algorithms: ['HS256']
