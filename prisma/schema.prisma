@@ -1,0 +1,168 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite" // production-ready allows switching to PostgreSQL later easily
+  url      = "file:./dev.db"
+}
+
+model User {
+  id             String   @id @default(cuid())
+  name           String
+  email          String   @unique
+  hashedPassword String   @default("") 
+  role           String   @default("ORDER_BOOKER") // ADMIN, SUPER_ADMIN, MANAGER, INVENTORY_STAFF, ORDER_BOOKER
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  AuditLogs AuditLog[]
+}
+
+model Customer {
+  id                 String   @id @default(cuid())
+  uniqueCustomerId   String   @unique
+  name               String
+  email              String?
+  phone              String?
+  address            String?
+  registrationNumber String?
+  balance            Float    @default(0) // Ledger balance dynamically managed
+  creditLimit        Float    @default(0) // Admin controlled credit bounds
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  Orders           Order[]
+  Payments         Payment[]
+  CreditNotes      CreditNote[]
+  DiscountRules    DiscountRule[]
+}
+
+model DiscountRule {
+  id                String   @id @default(cuid())
+  customerId        String
+  productId         String
+  maxDiscountPct    Float    @default(0) // Between 0 - 100
+  createdAt         DateTime @default(now())
+  
+  customer          Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  product           Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([customerId, productId])
+}
+
+model Category {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  Products Product[]
+}
+
+model Product {
+  id                String   @id @default(cuid())
+  sku               String   @unique
+  productCode       String   @unique
+  barcode           String   @unique
+  name              String
+  categoryId        String
+  basePrice         Float    // Net price
+  isVatEnabled      Boolean  @default(true) // 20% VAT
+  unitOfMeasurement String   @default("PCS") 
+  stock             Int      @default(0) // Total stock derived from transactions
+  minStockLevel     Int      @default(10) // Alert threshold
+  
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  category      Category    @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  OrderItems    OrderItem[]
+  InventoryTx   InventoryTransaction[]
+  DiscountRules DiscountRule[]
+}
+
+model Order {
+  id            String   @id @default(cuid())
+  customerId    String
+  status        String   @default("PENDING") // PENDING, APPROVED, ON_HOLD, REJECTED
+  paymentStatus String   @default("PENDING") // PENDING, PARTIAL_PAID, FULLY_PAID
+  
+  totalGross    Float    @default(0)
+  totalVat      Float    @default(0)
+  totalNet      Float    @default(0)
+  totalDiscount Float    @default(0)
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  approvedBy    String? // ID of Manager/Admin who approved
+
+  customer      Customer    @relation(fields: [customerId], references: [id])
+  OrderItems    OrderItem[]
+  Payments      Payment[]
+}
+
+model OrderItem {
+  id             String   @id @default(cuid())
+  orderId        String
+  productId      String
+  qty            Int
+  price          Float    // Locked Net
+  vatAmount      Float    // Locked VAT 
+  discountAmount Float    @default(0)
+  createdAt      DateTime @default(now())
+
+  order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id])
+}
+
+model Payment {
+  id         String   @id @default(cuid())
+  customerId String
+  orderId    String?
+  amount     Float
+  method     String   // CASH, CHEQUE, ONLINE
+  isDeleted  Boolean  @default(false) // Soft delete handling for Super Admin controls
+  createdAt  DateTime @default(now())
+
+  customer Customer @relation(fields: [customerId], references: [id])
+  order    Order?   @relation(fields: [orderId], references: [id])
+}
+
+model CreditNote {
+  id         String   @id @default(cuid())
+  customerId String
+  amount     Float
+  reason     String
+  isDeleted  Boolean  @default(false)
+  createdBy  String   // User tracking
+  createdAt  DateTime @default(now())
+
+  customer Customer @relation(fields: [customerId], references: [id])
+}
+
+model InventoryTransaction {
+  id         String   @id @default(cuid())
+  productId  String
+  type       String   // IN, OUT, ADJUSTMENT, WASTAGE
+  qty        Int
+  notes      String?
+  expiryDate DateTime? // Optional expiry tracking per batch received
+  batchNo    String? // Identifiable receipt/batch number
+  createdAt  DateTime @default(now())
+
+  product Product @relation(fields: [productId], references: [id])
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  userId     String   // Who did it
+  action     String   // What they did (e.g. "APPROVED_ORDER")
+  entity     String   // "ORDER", "PAYMENT", "INVENTORY"
+  entityId   String
+  details    String?  // JSON stringified history
+  createdAt  DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+}
